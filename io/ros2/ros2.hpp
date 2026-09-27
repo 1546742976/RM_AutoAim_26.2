@@ -1,0 +1,56 @@
+#ifndef IO__ROS2_HPP
+#define IO__ROS2_HPP
+
+#include "publish2nav.hpp"
+#include "subscribe2nav.hpp"
+#include "cmd_vel_subscriber.hpp"
+
+#include <std_msgs/msg/u_int8_multi_array.hpp>
+
+namespace io
+{
+class ROS2
+{
+public:
+  ROS2();
+
+  ~ROS2();
+
+  void publish(const Eigen::Vector4d & target_pos);
+
+  void publish_nav_referee_data(uint16_t cmd_id, const std::vector<uint8_t> & data);
+
+  std::vector<int8_t> subscribe_enemy_status();
+
+  std::vector<int8_t> subscribe_autoaim_target();
+
+  std::optional<NavData> get_last_cmd_vel_data();
+
+  template <typename T>
+  std::shared_ptr<rclcpp::Publisher<T>> create_publisher(
+    const std::string & node_name, const std::string & topic_name, size_t queue_size)
+  {
+    auto node = std::make_shared<rclcpp::Node>(node_name);
+
+    auto publisher = node->create_publisher<T>(topic_name, queue_size);
+
+    // 运行一个单独的线程来 spin 这个节点，确保消息可以被正确发布
+    std::thread([node]() { rclcpp::spin(node); }).detach();
+
+    return publisher;
+  }
+
+private:
+  std::shared_ptr<Publish2Nav> publish2nav_;
+  std::shared_ptr<Subscribe2Nav> subscribe2nav_;
+  std::shared_ptr<CmdVelSubscriber> cmd_vel_subscriber_;
+
+  std::unique_ptr<std::thread> publish_spin_thread_;
+  std::unique_ptr<std::thread> subscribe_spin_thread_;
+  std::unique_ptr<std::thread> cmd_vel_subscriber_spin_thread_;
+
+  std::shared_ptr<rclcpp::Publisher<std_msgs::msg::UInt8MultiArray>> nav_referee_pub_;
+};
+
+}  // namespace io
+#endif
